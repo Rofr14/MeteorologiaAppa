@@ -17,7 +17,6 @@ import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-
 import com.example.meteorologiaapp.network.WeatherService
 
 class MainActivity : ComponentActivity() {
@@ -36,8 +35,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun EcraMeteorologia() {
     val API_KEY = "8fc86da9e92c89a83269a76b11eb9caf"
-    var cidade by remember { mutableStateOf("") }
-    var temperatura by remember { mutableStateOf("-- ºC") }
+
+    var cidadeInput by remember { mutableStateOf("") }
+
+    var cidadeEncontrada by remember { mutableStateOf("--") }
+    var temperatura by remember { mutableStateOf("--") }
+    var humidade by remember { mutableStateOf("--") }
+    var vento by remember { mutableStateOf("--") }
+
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -52,14 +57,15 @@ fun EcraMeteorologia() {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
+        Spacer(modifier = Modifier.height(32.dp))
         Text("App de Meteorologia", fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
-            value = cidade,
-            onValueChange = { cidade = it },
+            value = cidadeInput,
+            onValueChange = { cidadeInput = it },
             label = { Text("Escreve a cidade...") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -68,18 +74,20 @@ fun EcraMeteorologia() {
 
         Button(
             onClick = {
-                if (cidade.isEmpty()) {
+                if (cidadeInput.isEmpty()) {
                     Toast.makeText(context, "Por favor, escreve uma cidade!", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
 
                 coroutineScope.launch {
                     try {
-                        val resposta = api.getExchangeWeather(cidade, API_KEY)
+                        val resposta = api.getExchangeWeather(cidadeInput, API_KEY)
                         if (resposta.isSuccessful && resposta.body() != null) {
                             val dados = resposta.body()!!
-                            // Aqui só vamos buscar a temperatura por agora
+                            cidadeEncontrada = "${dados.name}, ${dados.sys.country}"
                             temperatura = "${dados.main.temp} ºC"
+                            humidade = "${dados.main.humidity} %"
+                            vento = "${dados.wind.speed} m/s"
                         } else {
                             Toast.makeText(context, "Cidade não encontrada!", Toast.LENGTH_LONG).show()
                         }
@@ -95,8 +103,34 @@ fun EcraMeteorologia() {
 
         Spacer(modifier = Modifier.height(48.dp))
 
+        if (cidadeEncontrada != "--") {
+            Text("Tempo em $cidadeEncontrada", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(24.dp))
 
-        Text("Temperatura Atual:", fontSize = 20.sp)
-        Text(text = temperatura, fontSize = 40.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            CartaoMeteorologia(titulo = "Temperatura", valor = temperatura)
+            CartaoMeteorologia(titulo = "Humidade", valor = humidade)
+            CartaoMeteorologia(titulo = "Vento", valor = vento)
+        }
+    }
+}
+
+@Composable
+fun CartaoMeteorologia(titulo: String, valor: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = titulo, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(text = valor, fontSize = 18.sp)
+        }
     }
 }
