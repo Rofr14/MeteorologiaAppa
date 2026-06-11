@@ -13,6 +13,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -25,7 +28,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    EcraMeteorologia()
+                    MeteorologiaApp()
                 }
             }
         }
@@ -33,16 +36,42 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun EcraMeteorologia() {
-    val API_KEY = "8fc86da9e92c89a83269a76b11eb9caf"
+fun MeteorologiaApp() {
+    val navController = rememberNavController()
 
-    var cidadeInput by remember { mutableStateOf("") }
-
-    var cidadeEncontrada by remember { mutableStateOf("--") }
+    var local by remember { mutableStateOf("--") }
     var temperatura by remember { mutableStateOf("--") }
     var humidade by remember { mutableStateOf("--") }
     var vento by remember { mutableStateOf("--") }
 
+    NavHost(navController = navController, startDestination = "pesquisa") {
+        composable("pesquisa") {
+            PesquisaScreen(
+                onVerTempoClick = { apiLocal, apiTemp, apiHum, apiVento ->
+                    local = apiLocal
+                    temperatura = apiTemp
+                    humidade = apiHum
+                    vento = apiVento
+                    navController.navigate("resultado")
+                }
+            )
+        }
+        composable("resultado") {
+            ResultadoScreen(
+                local = local,
+                temperatura = temperatura,
+                humidade = humidade,
+                vento = vento,
+                onVoltarClick = { navController.popBackStack() }
+            )
+        }
+    }
+}
+
+@Composable
+fun PesquisaScreen(onVerTempoClick: (String, String, String, String) -> Unit) {
+    val API_KEY = "8fc86da9e92c89a83269a76b11eb9caf"
+    var cidade by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -57,15 +86,14 @@ fun EcraMeteorologia() {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
+        verticalArrangement = Arrangement.Center
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
         Text("App de Meteorologia", fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
-            value = cidadeInput,
-            onValueChange = { cidadeInput = it },
+            value = cidade,
+            onValueChange = { cidade = it },
             label = { Text("Escreve a cidade...") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -74,20 +102,22 @@ fun EcraMeteorologia() {
 
         Button(
             onClick = {
-                if (cidadeInput.isEmpty()) {
+                if (cidade.isEmpty()) {
                     Toast.makeText(context, "Por favor, escreve uma cidade!", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
 
                 coroutineScope.launch {
                     try {
-                        val resposta = api.getExchangeWeather(cidadeInput, API_KEY)
+                        val resposta = api.getExchangeWeather(cidade, API_KEY)
                         if (resposta.isSuccessful && resposta.body() != null) {
                             val dados = resposta.body()!!
-                            cidadeEncontrada = "${dados.name}, ${dados.sys.country}"
-                            temperatura = "${dados.main.temp} ºC"
-                            humidade = "${dados.main.humidity} %"
-                            vento = "${dados.wind.speed} m/s"
+                            onVerTempoClick(
+                                "${dados.name}, ${dados.sys.country}",
+                                "${dados.main.temp} ºC",
+                                "${dados.main.humidity} %",
+                                "${dados.wind.speed} m/s"
+                            )
                         } else {
                             Toast.makeText(context, "Cidade não encontrada!", Toast.LENGTH_LONG).show()
                         }
@@ -100,16 +130,28 @@ fun EcraMeteorologia() {
         ) {
             Text("Ver Tempo")
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(48.dp))
+@Composable
+fun ResultadoScreen(local: String, temperatura: String, humidade: String, vento: String, onVoltarClick: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Tempo em $local", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
 
-        if (cidadeEncontrada != "--") {
-            Text("Tempo em $cidadeEncontrada", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-            CartaoMeteorologia(titulo = "Temperatura", valor = temperatura)
-            CartaoMeteorologia(titulo = "Humidade", valor = humidade)
-            CartaoMeteorologia(titulo = "Vento", valor = vento)
+        CartaoMeteorologia(titulo = "Temperatura", valor = temperatura)
+        CartaoMeteorologia(titulo = "Humidade", valor = humidade)
+        CartaoMeteorologia(titulo = "Vento", valor = vento)
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        OutlinedButton(onClick = onVoltarClick, modifier = Modifier.fillMaxWidth()) {
+            Text("⬅ Voltar à Pesquisa")
         }
     }
 }
